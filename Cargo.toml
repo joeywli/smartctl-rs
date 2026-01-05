@@ -2,6 +2,10 @@
 name = "smartctl-rs"
 version = "0.1.0"
 edition = "2024"
+description = "A Rust library for interfacing with smartctl."
+license = "MIT"
+repository = "https://github.com/einstein8612/smartctl-rs.git"
+authors = ["Joey <joey@joeyli.dev>"]
 
 [dependencies]
 serde = {version = "1.0.228", features = ["derive"]}
