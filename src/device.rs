@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{RealSmartCtlRunner, SmartCtlRunner};
 use crate::error::SmartCtlError;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartOutput {
     /// Basic device information
     pub device: DeviceInfo,
@@ -36,7 +36,7 @@ pub struct SmartOutput {
     pub drive_health_percentage: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceInfo {
     pub name: String,
     pub info_name: String,
@@ -45,24 +45,24 @@ pub struct DeviceInfo {
     pub protocol: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserCapacity {
     pub blocks: u64,
     pub bytes: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartStatus {
     pub passed: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AtaSmartAttributes {
     pub revision: u64,
     pub table: Vec<SmartAttribute>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartAttribute {
     pub id: u64,
     pub name: String,
@@ -74,7 +74,7 @@ pub struct SmartAttribute {
     pub raw: SmartRawValue,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartFlags {
     pub value: u64,
     pub string: String,
@@ -82,23 +82,23 @@ pub struct SmartFlags {
     pub updated_online: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartRawValue {
     pub value: u64,
     pub string: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PowerOnTime {
     pub hours: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Temperature {
     pub current: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NvmeHealthLog {
     pub critical_warning: u64,
     pub temperature: u64,
