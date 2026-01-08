@@ -5,8 +5,11 @@ use crate::error::SmartCtlError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartOutput {
+    /// smartctl information
+    pub smartctl: SmartCtl,
+
     /// Basic device information
-    pub device: DeviceInfo,
+    pub device: Option<DeviceInfo>,
 
     /// Model name
     pub model_name: Option<String>,
@@ -34,6 +37,18 @@ pub struct SmartOutput {
 
     // Parsed drive health percentage, not from smartctl output directly
     pub drive_health_percentage: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmartCtl {
+    #[serde(default)]
+    pub messages: Vec<SmartCtlMessage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmartCtlMessage {
+    pub string: String,
+    pub severity: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,6 +159,14 @@ fn get_device_info_internal<R: SmartCtlRunner>(runner: &R, device_path: &str) ->
 
     let mut parsed: SmartOutput = serde_json::from_slice(&output.stdout)?;
 
+    if !parsed.smartctl.messages.is_empty() {
+        for message in &parsed.smartctl.messages {
+            if message.severity.to_lowercase() == "error" {
+                return Err(SmartCtlError::CommandFailed(message.string.clone()));
+            }
+        }
+    }
+
     // Find and set health percentage
     let health_percentage: Option<u64> = get_device_health(&parsed);
     parsed.drive_health_percentage = health_percentage;
@@ -196,7 +219,7 @@ mod tests {
         let info = result.unwrap();
 
         // Test some key fields
-        assert_eq!(info.device.name, "/dev/sda");
+        assert_eq!(info.device.as_ref().unwrap().name, "/dev/sda");
         assert_eq!(info.model_name.as_ref().unwrap(), "ST2000DM006-2DM164");
         assert_eq!(info.smart_status.as_ref().unwrap().passed, true);
         assert_eq!(info.drive_health_percentage, None);
@@ -219,7 +242,7 @@ mod tests {
         let info = result.unwrap();
 
         // Test some key fields
-        assert_eq!(info.device.name, "/dev/sdb");
+        assert_eq!(info.device.as_ref().unwrap().name, "/dev/sdb");
         assert_eq!(info.model_name.as_ref().unwrap(), "Samsung SSD 850 EVO M.2 250GB");
         assert_eq!(info.smart_status.as_ref().unwrap().passed, true);
         assert_eq!(info.drive_health_percentage, Some(72));
@@ -242,11 +265,26 @@ mod tests {
         let info = result.unwrap();
 
         // Test some key fields
-        assert_eq!(info.device.name, "/dev/nvme0");
+        assert_eq!(info.device.as_ref().unwrap().name, "/dev/nvme0");
         assert_eq!(info.model_name.as_ref().unwrap(), "WDS100T1X0E-00AFY0");
         assert_eq!(info.smart_status.as_ref().unwrap().passed, true);
         assert_eq!(info.drive_health_percentage, Some(100));
         assert_eq!(info.user_capacity.as_ref().unwrap().bytes, 1000204886016);
         assert_eq!(info.temperature.as_ref().unwrap().current, 37);
+    }
+
+    #[test]
+    fn test_fail_message() {
+        let json_data = include_bytes!("../tests/fixtures/perm.json");
+        let mock = MockSmartCtlRunner {
+            status_raw: 0,
+            stdout_data: json_data.to_vec(),
+            stderr_data: vec![],
+        };
+
+        let result = get_device_info_internal(&mock, "/dev/sdb");
+
+        assert!(result.is_err());
+        assert!(matches!(result.err().unwrap(), SmartCtlError::CommandFailed(_)));
     }
 }
