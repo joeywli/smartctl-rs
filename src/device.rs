@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::{RealSmartCtlRunner, SmartCtlRunner};
 use crate::error::SmartCtlError;
+use crate::{RealSmartCtlRunner, SmartCtlRunner};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartOutput {
@@ -13,30 +15,36 @@ pub struct SmartOutput {
 
     /// Model name
     pub model_name: Option<String>,
-    
+
+    /// Firmware version
+    pub firmware_version: Option<String>,
+
+    /// Serial number
+    pub serial_number: Option<String>,
+
+    /// Rotation rate
+    pub rotation_rate: Option<u64>,
+
     /// User capacity
     pub user_capacity: Option<UserCapacity>,
-    
+
     /// SMART Status
     pub smart_status: Option<SmartStatus>,
-    
+
     /// ATA Specific Attributes
     pub ata_smart_attributes: Option<AtaSmartAttributes>,
-    
+
     /// Power on time
     pub power_on_time: Option<PowerOnTime>,
 
     /// Power cycle count
     pub power_cycle_count: Option<u64>,
-    
+
     /// Temperature information
     pub temperature: Option<Temperature>,
 
     /// NVMe SMART Health Information Log
-    pub nvme_smart_health_information_log: Option<NvmeHealthLog>,
-
-    // Parsed drive health percentage, not from smartctl output directly
-    pub drive_health_percentage: Option<u64>,
+    pub nvme_smart_health_information_log: Option<HashMap<String, i64>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,39 +121,10 @@ pub struct Temperature {
     pub current: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NvmeHealthLog {
-    pub critical_warning: u64,
-    pub temperature: u64,
-    pub available_spare: u64,
-    pub available_spare_threshold: u64,
-    pub percentage_used: u64,
-}
-
-fn get_device_health(output: &SmartOutput) -> Option<u64> {
-    if output.nvme_smart_health_information_log.is_some() {
-        let nvme_log = output.nvme_smart_health_information_log.as_ref().unwrap();
-        return Some(100 - nvme_log.percentage_used);
-    }
-
-    if let Some(attrs) = &output.ata_smart_attributes {
-        for attr in &attrs.table {
-            let health = match attr.id {
-                231 | 177 | 233 | 202 => {
-                    Some(attr.value)
-                }
-                _ => None,
-            };
-
-            if health.is_some() {
-                return health;
-            }
-        }
-    }
-    None
-}
-
-fn get_device_info_internal<R: SmartCtlRunner>(runner: &R, device_path: &str) -> Result<SmartOutput, SmartCtlError> {
+fn get_device_info_internal<R: SmartCtlRunner>(
+    runner: &R,
+    device_path: &str,
+) -> Result<SmartOutput, SmartCtlError> {
     let args = ["--all", "--json", device_path];
     let output = runner.run(&args).map_err(|_| SmartCtlError::NotFound)?;
 
@@ -157,7 +136,7 @@ fn get_device_info_internal<R: SmartCtlRunner>(runner: &R, device_path: &str) ->
         return Err(SmartCtlError::CommandFailed(stderr.to_string()));
     }
 
-    let mut parsed: SmartOutput = serde_json::from_slice(&output.stdout)?;
+    let parsed: SmartOutput = serde_json::from_slice(&output.stdout)?;
 
     if !parsed.smartctl.messages.is_empty() {
         for message in &parsed.smartctl.messages {
@@ -166,10 +145,6 @@ fn get_device_info_internal<R: SmartCtlRunner>(runner: &R, device_path: &str) ->
             }
         }
     }
-
-    // Find and set health percentage
-    let health_percentage: Option<u64> = get_device_health(&parsed);
-    parsed.drive_health_percentage = health_percentage;
 
     Ok(parsed)
 }
@@ -180,7 +155,10 @@ pub fn get_device_info(device_path: &str) -> Result<SmartOutput, SmartCtlError> 
 
 #[cfg(test)]
 mod tests {
-    use std::{process::{ExitStatus, Output}, vec};
+    use std::{
+        process::{ExitStatus, Output},
+        vec,
+    };
 
     #[cfg(unix)]
     use std::os::unix::process::ExitStatusExt;
@@ -222,7 +200,6 @@ mod tests {
         assert_eq!(info.device.as_ref().unwrap().name, "/dev/sda");
         assert_eq!(info.model_name.as_ref().unwrap(), "ST2000DM006-2DM164");
         assert_eq!(info.smart_status.as_ref().unwrap().passed, true);
-        assert_eq!(info.drive_health_percentage, None);
         assert_eq!(info.user_capacity.as_ref().unwrap().bytes, 2000398934016);
         assert_eq!(info.temperature.as_ref().unwrap().current, 26);
     }
@@ -243,9 +220,11 @@ mod tests {
 
         // Test some key fields
         assert_eq!(info.device.as_ref().unwrap().name, "/dev/sdb");
-        assert_eq!(info.model_name.as_ref().unwrap(), "Samsung SSD 850 EVO M.2 250GB");
+        assert_eq!(
+            info.model_name.as_ref().unwrap(),
+            "Samsung SSD 850 EVO M.2 250GB"
+        );
         assert_eq!(info.smart_status.as_ref().unwrap().passed, true);
-        assert_eq!(info.drive_health_percentage, Some(72));
         assert_eq!(info.user_capacity.as_ref().unwrap().bytes, 250059350016);
         assert_eq!(info.temperature.as_ref().unwrap().current, 25);
     }
@@ -268,7 +247,6 @@ mod tests {
         assert_eq!(info.device.as_ref().unwrap().name, "/dev/nvme0");
         assert_eq!(info.model_name.as_ref().unwrap(), "WDS100T1X0E-00AFY0");
         assert_eq!(info.smart_status.as_ref().unwrap().passed, true);
-        assert_eq!(info.drive_health_percentage, Some(100));
         assert_eq!(info.user_capacity.as_ref().unwrap().bytes, 1000204886016);
         assert_eq!(info.temperature.as_ref().unwrap().current, 37);
     }
@@ -285,6 +263,9 @@ mod tests {
         let result = get_device_info_internal(&mock, "/dev/sdb");
 
         assert!(result.is_err());
-        assert!(matches!(result.err().unwrap(), SmartCtlError::CommandFailed(_)));
+        assert!(matches!(
+            result.err().unwrap(),
+            SmartCtlError::CommandFailed(_)
+        ));
     }
 }

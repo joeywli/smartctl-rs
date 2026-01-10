@@ -21,7 +21,7 @@ fn scan_devices_internal<R: SmartCtlRunner>(runner: &R) -> Result<Vec<ScanDevice
     let output = runner.run(&args).map_err(|_| SmartCtlError::NotFound)?;
 
     if !output.status.success() {
-         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(SmartCtlError::CommandFailed(stderr.to_string()));
     }
 
@@ -35,7 +35,10 @@ pub fn scan_devices() -> Result<Vec<ScanDevice>, SmartCtlError> {
 
 #[cfg(test)]
 mod tests {
-    use std::{process::{ExitStatus, Output}, vec};
+    use std::{
+        process::{ExitStatus, Output},
+        vec,
+    };
 
     #[cfg(unix)]
     use std::os::unix::process::ExitStatusExt;
