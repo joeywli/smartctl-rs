@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::SmartCtlError;
-use crate::{RealSmartCtlRunner, SmartCtlRunner};
+use crate::{RealSmartCtlRunner, SmartCtlRunner, error::SmartCtlError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmartOutput {
@@ -26,7 +25,7 @@ pub struct SmartOutput {
     pub rotation_rate: Option<u64>,
 
     /// User capacity
-    pub user_capacity: Option<UserCapacity>,
+    pub user_capacity: Option<BlocksAndBytes>,
 
     /// SMART Status
     pub smart_status: Option<SmartStatus>,
@@ -42,6 +41,25 @@ pub struct SmartOutput {
 
     /// Temperature information
     pub temperature: Option<Temperature>,
+
+    /// NVMe IEEE OUI Identifier
+    pub nvme_ieee_oui_identifier: Option<u32>,
+
+    /// NVMe Total Disk Capacity
+    pub nvme_total_capacity: Option<u64>,
+
+    /// NVMe Total Unallocated Capacity
+    pub nvme_unallocated_capacity: Option<u64>,
+
+    /// NVMe Protocol Version
+    pub nvme_version: Option<NvmeVersion>,
+
+    /// NVMe Number of Namespaces
+    pub nvme_number_of_namespaces: Option<u64>,
+
+    /// NVMe Namespaces
+    #[serde(default)]
+    pub nvme_namespaces: Vec<NvmeNamespace>,
 
     /// NVMe SMART Health Information Log
     pub nvme_smart_health_information_log: Option<HashMap<String, i64>>,
@@ -69,7 +87,7 @@ pub struct DeviceInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserCapacity {
+pub struct BlocksAndBytes {
     pub blocks: u64,
     pub bytes: u64,
 }
@@ -119,6 +137,50 @@ pub struct PowerOnTime {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Temperature {
     pub current: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NvmeVersion {
+    pub string: String,
+    pub value: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NvmeNamespace {
+    pub id: u64,
+    pub size: Option<BlocksAndBytes>,
+    pub capacity: Option<BlocksAndBytes>,
+    pub utilization: Option<BlocksAndBytes>,
+    pub formatted_lba_size: Option<u64>,
+    pub eui64: Option<NvmeNamespaceEui64>,
+    pub features: NvmeNamespaceFeatures,
+    #[serde(default)]
+    pub lba_formats: Vec<NvmeNamespaceLbaFormat>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NvmeNamespaceEui64 {
+    pub oui: u32,
+    pub ext_id: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NvmeNamespaceFeatures {
+    pub value: u64,
+    pub thin_provisioning: bool,
+    pub na_fields: bool,
+    pub dealloc_or_unwritten_block_error: bool,
+    pub uid_reuse: bool,
+    pub np_fields: bool,
+    pub other: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NvmeNamespaceLbaFormat {
+    pub formatted: bool,
+    pub data_bytes: u64,
+    pub metadata_bytes: u64,
+    pub relative_performance: u64,
 }
 
 fn get_device_info_internal<R: SmartCtlRunner>(
